@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, ArrowUpDown } from "lucide-react"
+import { Download, ArrowUpDown, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 
 type ItemType = {
   id: string
@@ -42,7 +43,34 @@ export default function GTDCaptureApp() {
   const [processedItems, setProcessedItems] = useState<ItemType[]>([])
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null)
   const [sortByCategory, setSortByCategory] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const tableRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
+
+  // Load existing processed items from database
+  useEffect(() => {
+    const loadProcessedItems = async () => {
+      try {
+        const response = await fetch('/api/items')
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.items) {
+            // Convert database items to our ItemType format
+            const dbItems = result.items.map((item: any) => ({
+              id: item.id,
+              text: item.text,
+              category: item.category,
+            }))
+            setProcessedItems(dbItems)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading processed items:', error)
+      }
+    }
+
+    loadProcessedItems()
+  }, [])
 
   // Store items from the textarea
   const handleStore = () => {
@@ -91,28 +119,108 @@ export default function GTDCaptureApp() {
   }
 
   // Process an item based on the category
-  const processItem = (categoryId: string) => {
-    if (selectedItemIndex === null || items.length === 0) return
+  const processItem = async (categoryId: string) => {
+    if (selectedItemIndex === null || items.length === 0 || isProcessing) return
 
     const itemToProcess = items[selectedItemIndex]
-    const processedItem = { ...itemToProcess, category: categoryId }
+    setIsProcessing(true)
 
-    // Remove from items and add to processed items
-    const newItems = items.filter((_, index) => index !== selectedItemIndex)
-    setItems(newItems)
-    setProcessedItems((prev) => [processedItem, ...prev])
+    try {
+      // Save to database
+      const response = await fetch('/api/items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: itemToProcess.text,
+          category: categoryId,
+        }),
+      })
 
-    // Update selected index
-    if (newItems.length > 0) {
-      setSelectedItemIndex(Math.min(selectedItemIndex, newItems.length - 1))
-    } else {
-      setSelectedItemIndex(null)
+      if (!response.ok) {
+        throw new Error('Failed to save item')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        const processedItem = { ...itemToProcess, category: categoryId }
+
+        // Remove from items and add to processed items
+        const newItems = items.filter((_, index) => index !== selectedItemIndex)
+        setItems(newItems)
+        setProcessedItems((prev) => [processedItem, ...prev])
+
+        // Update selected index
+        if (newItems.length > 0) {
+          setSelectedItemIndex(Math.min(selectedItemIndex, newItems.length - 1))
+        } else {
+          setSelectedItemIndex(null)
+        }
+
+        toast({
+          title: "Item saved",
+          description: "Item has been successfully classified and saved to the database.",
+        })
+      } else {
+        throw new Error(result.error || 'Failed to save item')
+      }
+    } catch (error) {
+      console.error('Error saving item:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save item to database. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   // Change category of a processed item
-  const changeItemCategory = (itemId: string, newCategoryId: string) => {
-    setProcessedItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, category: newCategoryId } : item)))
+  const changeItemCategory = async (itemId: string, newCategoryId: string) => {
+    const item = processedItems.find(item => item.id === itemId)
+    if (!item) return
+
+    try {
+      // Update in database
+      const response = await fetch('/api/items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: item.text,
+          category: newCategoryId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update item')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update local state
+        setProcessedItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, category: newCategoryId } : item)))
+
+        toast({
+          title: "Category updated",
+          description: "Item category has been successfully updated.",
+        })
+      } else {
+        throw new Error(result.error || 'Failed to update item')
+      }
+    } catch (error) {
+      console.error('Error updating item category:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update item category. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Handle keyboard shortcuts
@@ -222,9 +330,9 @@ export default function GTDCaptureApp() {
         const categoryName = category
           ? category.name
           : categoryId
-              .split("-")
-              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(" ")
+            .split("-")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ")
 
         textContent += `== ${categoryName} ==\n`
         items.forEach((item) => {
@@ -283,6 +391,12 @@ export default function GTDCaptureApp() {
                     Press {index + 1}: {category.name}
                   </Badge>
                 ))}
+                {isProcessing && (
+                  <Badge variant="outline" className="text-sm bg-blue-50">
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Saving...
+                  </Badge>
+                )}
               </div>
 
               <div ref={tableRef} className="border rounded-md" onKeyDown={handleKeyDown} tabIndex={0}>
