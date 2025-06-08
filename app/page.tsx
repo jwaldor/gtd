@@ -9,34 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, ArrowUpDown, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-
-type ItemType = {
-  id: string
-  text: string
-  category?: string
-}
-
-// Category configuration with colors
-type CategoryConfig = {
-  id: string
-  name: string
-  color: string
-}
+import { ItemType, categories, getCategoryById } from "@/lib/types"
 
 export default function GTDCaptureApp() {
-  // Define categories array
-  const categories: CategoryConfig[] = [
-    { id: "essential-actionable-now", name: "Essential Actionable Now", color: "bg-red-500 hover:bg-red-600" },
-    { id: "actionable-now", name: "Actionable Now", color: "bg-green-500 hover:bg-green-600" },
-    {
-      id: "essential-not-actionable-now",
-      name: "Essential Not Actionable Now",
-      color: "bg-orange-500 hover:bg-orange-600",
-    },
-    { id: "not-actionable-now", name: "Not Actionable Now", color: "bg-yellow-500 hover:bg-yellow-600" },
-    { id: "future", name: "Future", color: "bg-blue-500 hover:bg-blue-600" },
-    { id: "already-done", name: "Already Done", color: "bg-gray-500 hover:bg-gray-600" },
-  ]
 
   const [inputText, setInputText] = useState("")
   const [items, setItems] = useState<ItemType[]>([])
@@ -267,7 +242,7 @@ export default function GTDCaptureApp() {
   const getCategoryBadge = (categoryId?: string) => {
     if (!categoryId) return null
 
-    const category = categories.find((cat) => cat.id === categoryId)
+    const category = getCategoryById(categoryId)
     if (!category) return <Badge>{categoryId}</Badge>
 
     return <Badge className={category.color}>{category.name}</Badge>

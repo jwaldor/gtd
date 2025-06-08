@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
+import { Navigation } from '@/components/navigation'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'GTD Capture App',
+  description: 'Getting Things Done capture and classification system',
 }
 
 export default function RootLayout({
@@ -16,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
+        <Navigation />
+        <main>
+          {children}
+        </main>
         <Toaster />
       </body>
     </html>
