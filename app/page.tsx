@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, type KeyboardEvent } from "react"
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -94,7 +94,7 @@ export default function GTDCaptureApp() {
   }
 
   // Process an item based on the category
-  const processItem = async (categoryId: string) => {
+  const processItem = useCallback(async (categoryId: string) => {
     if (selectedItemIndex === null || items.length === 0 || isProcessing) return
 
     const itemToProcess = items[selectedItemIndex]
@@ -151,7 +151,7 @@ export default function GTDCaptureApp() {
     } finally {
       setIsProcessing(false)
     }
-  }
+  }, [selectedItemIndex, items, isProcessing, setIsProcessing, setItems, setProcessedItems, toast])
 
   // Change category of a processed item
   const changeItemCategory = async (itemId: string, newCategoryId: string) => {
@@ -236,7 +236,7 @@ export default function GTDCaptureApp() {
 
     window.addEventListener("keydown", handleGlobalKeyDown)
     return () => window.removeEventListener("keydown", handleGlobalKeyDown)
-  }, [selectedItemIndex, items, categories])
+  }, [selectedItemIndex, items, processItem])
 
   // Get category badge
   const getCategoryBadge = (categoryId?: string) => {
