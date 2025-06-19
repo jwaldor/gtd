@@ -3,6 +3,8 @@ import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import { Navigation } from '@/components/navigation'
 
+// comment
+
 export const metadata: Metadata = {
   title: 'GTD Capture App',
   description: 'Getting Things Done capture and classification system',

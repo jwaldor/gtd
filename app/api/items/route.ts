@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import {
+  createItemTool,
+  updateItemTool,
+  deleteItemTool,
+  getItemsTool,
+} from "@/lib/itemsServices";
 
 // Validation schema for the request body
 const createItemSchema = z.object({
@@ -21,26 +26,19 @@ export async function POST(request: NextRequest) {
     // Validate the request body
     const validatedData = createItemSchema.parse(body);
 
-    // Save the item to the database
-    const item = await prisma.item.create({
-      data: {
+    // Use the createItemTool to save the item
+    const result = await createItemTool.execute(
+      {
         text: validatedData.text,
         category: validatedData.category,
       },
-    });
-
-    return NextResponse.json(
       {
-        success: true,
-        item: {
-          id: item.id,
-          text: item.text,
-          category: item.category,
-          createdAt: item.createdAt,
-        },
-      },
-      { status: 201 }
+        toolCallId: "manual-call",
+        messages: [],
+      }
     );
+
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Error saving item:", error);
 
@@ -72,28 +70,20 @@ export async function PUT(request: NextRequest) {
     // Validate the request body
     const validatedData = updateItemSchema.parse(body);
 
-    // Update the item in the database
-    const item = await prisma.item.update({
-      where: { id: validatedData.id },
-      data: {
-        ...(validatedData.text && { text: validatedData.text }),
-        ...(validatedData.category && { category: validatedData.category }),
-      },
-    });
-
-    return NextResponse.json(
+    // Use the updateItemTool to update the item
+    const result = await updateItemTool.execute(
       {
-        success: true,
-        item: {
-          id: item.id,
-          text: item.text,
-          category: item.category,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        },
+        id: validatedData.id,
+        text: validatedData.text,
+        category: validatedData.category,
       },
-      { status: 200 }
+      {
+        toolCallId: "manual-call",
+        messages: [],
+      }
     );
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Error updating item:", error);
 
@@ -133,18 +123,16 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete the item from the database
-    await prisma.item.delete({
-      where: { id },
-    });
-
-    return NextResponse.json(
+    // Use the deleteItemTool to delete the item
+    const result = await deleteItemTool.execute(
+      { id },
       {
-        success: true,
-        message: "Item deleted successfully",
-      },
-      { status: 200 }
+        toolCallId: "manual-call",
+        messages: [],
+      }
     );
+
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     console.error("Error deleting item:", error);
 
@@ -160,16 +148,16 @@ export async function DELETE(request: NextRequest) {
 
 export async function GET() {
   try {
-    const items = await prisma.item.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    // Use the getItemsTool to fetch all items
+    const result = await getItemsTool.execute(
+      {},
+      {
+        toolCallId: "manual-call",
+        messages: [],
+      }
+    );
 
-    return NextResponse.json({
-      success: true,
-      items,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error fetching items:", error);
 
