@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import { Navigation } from '@/components/navigation'
+import { ChatPopup } from '@/components/chat-popup'
 
 // comment
 
@@ -23,6 +24,7 @@ export default function RootLayout({
           {children}
         </main>
         <Toaster />
+        <ChatPopup />
       </body>
     </html>
   )
