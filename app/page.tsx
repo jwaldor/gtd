@@ -6,46 +6,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Download, ArrowUpDown, Loader2 } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { ItemType, categories, getCategoryById } from "@/lib/types"
+import { ItemType, categories } from "@/lib/types"
 
 export default function GTDCaptureApp() {
 
   const [inputText, setInputText] = useState("")
   const [items, setItems] = useState<ItemType[]>([])
-  const [processedItems, setProcessedItems] = useState<ItemType[]>([])
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null)
-  const [sortByCategory, setSortByCategory] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const tableRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
-  // Load existing processed items from database
-  useEffect(() => {
-    const loadProcessedItems = async () => {
-      try {
-        const response = await fetch('/api/items')
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success && result.items) {
-            // Convert database items to our ItemType format
-            const dbItems = result.items.map((item: any) => ({
-              id: item.id,
-              text: item.text,
-              category: item.category,
-            }))
-            setProcessedItems(dbItems)
-          }
-        }
-      } catch (error) {
-        console.error('Error loading processed items:', error)
-      }
-    }
-
-    loadProcessedItems()
-  }, [])
+  // Note: Processed items are now managed on the /items page
+  // This page focuses only on capturing and processing new items
 
   // Store items from the textarea
   const handleStore = () => {
@@ -120,12 +95,9 @@ export default function GTDCaptureApp() {
       const result = await response.json()
 
       if (result.success) {
-        const processedItem = { ...itemToProcess, category: categoryId }
-
-        // Remove from items and add to processed items
+        // Remove from items (no longer tracking processed items locally)
         const newItems = items.filter((_, index) => index !== selectedItemIndex)
         setItems(newItems)
-        setProcessedItems((prev) => [processedItem, ...prev])
 
         // Update selected index
         if (newItems.length > 0) {
@@ -136,7 +108,7 @@ export default function GTDCaptureApp() {
 
         toast({
           title: "Item saved",
-          description: "Item has been successfully classified and saved to the database.",
+          description: "Item has been successfully classified and saved. View all items on the Items page.",
         })
       } else {
         throw new Error(result.error || 'Failed to save item')
@@ -151,52 +123,9 @@ export default function GTDCaptureApp() {
     } finally {
       setIsProcessing(false)
     }
-  }, [selectedItemIndex, items, isProcessing, setIsProcessing, setItems, setProcessedItems, toast])
+  }, [selectedItemIndex, items, isProcessing, toast])
 
-  // Change category of a processed item
-  const changeItemCategory = async (itemId: string, newCategoryId: string) => {
-    const item = processedItems.find(item => item.id === itemId)
-    if (!item) return
-
-    try {
-      // Update in database
-      const response = await fetch('/api/items', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: item.text,
-          category: newCategoryId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update item')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        // Update local state
-        setProcessedItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, category: newCategoryId } : item)))
-
-        toast({
-          title: "Category updated",
-          description: "Item category has been successfully updated.",
-        })
-      } else {
-        throw new Error(result.error || 'Failed to update item')
-      }
-    } catch (error) {
-      console.error('Error updating item category:', error)
-      toast({
-        title: "Error",
-        description: "Failed to update item category. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
+  // Category changes are now handled on the /items page
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -238,96 +167,7 @@ export default function GTDCaptureApp() {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown)
   }, [selectedItemIndex, items, processItem])
 
-  // Get category badge
-  const getCategoryBadge = (categoryId?: string) => {
-    if (!categoryId) return null
-
-    const category = getCategoryById(categoryId)
-    if (!category) return <Badge>{categoryId}</Badge>
-
-    return <Badge className={category.color}>{category.name}</Badge>
-  }
-
-  // Get sorted processed items
-  const getSortedProcessedItems = () => {
-    if (!sortByCategory) return processedItems
-
-    // Create a copy to avoid mutating the original array
-    return [...processedItems].sort((a, b) => {
-      const catA = a.category || "uncategorized"
-      const catB = b.category || "uncategorized"
-
-      // Find the indices of the categories in the categories array
-      const indexA = categories.findIndex((cat) => cat.id === catA)
-      const indexB = categories.findIndex((cat) => cat.id === catB)
-
-      // If both categories are found in the array, sort by their position
-      if (indexA !== -1 && indexB !== -1) {
-        return indexA - indexB
-      }
-
-      // If only one category is found, prioritize it
-      if (indexA !== -1) return -1
-      if (indexB !== -1) return 1
-
-      // If neither is found, sort alphabetically
-      return catA.localeCompare(catB)
-    })
-  }
-
-  // Download processed items as a text file organized by category
-  const downloadProcessedItems = () => {
-    if (processedItems.length === 0) return
-
-    // Organize items by category
-    const categorizedItems: Record<string, string[]> = {}
-
-    // Initialize categories
-    categories.forEach((cat) => {
-      categorizedItems[cat.id] = []
-    })
-    categorizedItems["uncategorized"] = []
-
-    processedItems.forEach((item) => {
-      const category = item.category || "uncategorized"
-      if (!categorizedItems[category]) {
-        categorizedItems[category] = []
-      }
-      categorizedItems[category].push(item.text)
-    })
-
-    // Create text content
-    let textContent = "GTD Processed Items\n\n"
-
-    Object.entries(categorizedItems).forEach(([categoryId, items]) => {
-      if (items.length > 0) {
-        const category = categories.find((cat) => cat.id === categoryId)
-        const categoryName = category
-          ? category.name
-          : categoryId
-            .split("-")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(" ")
-
-        textContent += `== ${categoryName} ==\n`
-        items.forEach((item) => {
-          textContent += `- ${item}\n`
-        })
-        textContent += "\n"
-      }
-    })
-
-    // Create and download the file
-    const blob = new Blob([textContent], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "gtd-processed-items.txt"
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+  // Processed items functionality moved to /items page
 
   return (
     <div className="container mx-auto py-8 max-w-4xl">
@@ -409,71 +249,7 @@ export default function GTDCaptureApp() {
           </CardContent>
         </Card>
 
-        {/* Processed Items Section */}
-        {processedItems.length > 0 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Processed Items</CardTitle>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSortByCategory(!sortByCategory)}
-                  className="flex items-center gap-1"
-                >
-                  <ArrowUpDown size={16} />
-                  {sortByCategory ? "Unsort" : "Sort by Category"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={downloadProcessedItems}
-                  className="flex items-center gap-1"
-                >
-                  <Download size={16} />
-                  Download
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="w-[250px]">Category</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getSortedProcessedItems().map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.text}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getCategoryBadge(item.category)}
-                          <Select
-                            value={item.category || ""}
-                            onValueChange={(value) => changeItemCategory(item.id, value)}
-                          >
-                            <SelectTrigger className="w-[180px] h-8">
-                              <SelectValue placeholder="Change category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+        {/* Processed items are now managed on the /items page */}
       </div>
     </div>
   )

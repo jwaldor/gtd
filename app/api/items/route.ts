@@ -146,11 +146,35 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Use the getItemsTool to fetch all items
+    const { searchParams } = new URL(request.url);
+
+    // Extract query parameters
+    const search = searchParams.get("search") || undefined;
+    const category = searchParams.get("category") || undefined;
+    const sortBy =
+      (searchParams.get("sortBy") as
+        | "date-desc"
+        | "date-asc"
+        | "category"
+        | "text") || "date-desc";
+    const limit = searchParams.get("limit")
+      ? parseInt(searchParams.get("limit")!)
+      : undefined;
+    const offset = searchParams.get("offset")
+      ? parseInt(searchParams.get("offset")!)
+      : 0;
+
+    // Use the getItemsTool to fetch filtered items
     const result = await getItemsTool.execute(
-      {},
+      {
+        search,
+        category,
+        sortBy,
+        limit,
+        offset,
+      },
       {
         toolCallId: "manual-call",
         messages: [],

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Filter, Trash2, Calendar, ArrowUpDown, Loader2 } from "lucide-react"
+import { Search, Filter, Trash2, Calendar, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { ItemType, categories, getCategoryById } from "@/lib/types"
 
@@ -15,24 +15,46 @@ type SortOption = "date-desc" | "date-asc" | "category" | "text"
 
 export default function ItemsPage() {
   const [items, setItems] = useState<ItemType[]>([])
-  const [filteredItems, setFilteredItems] = useState<ItemType[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [sortBy, setSortBy] = useState<SortOption>("date-desc")
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState<string | null>(null)
+  const [totalCount, setTotalCount] = useState(0)
   const { toast } = useToast()
 
-  // Load items from database
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Load items from database with server-side filtering
   useEffect(() => {
     const loadItems = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch('/api/items')
+
+        // Build query parameters
+        const params = new URLSearchParams()
+        if (debouncedSearchQuery.trim()) {
+          params.append('search', debouncedSearchQuery.trim())
+        }
+        if (selectedCategory !== 'all') {
+          params.append('category', selectedCategory)
+        }
+        params.append('sortBy', sortBy)
+
+        const response = await fetch(`/api/items?${params.toString()}`)
         if (response.ok) {
           const result = await response.json()
           if (result.success && result.items) {
             setItems(result.items)
+            setTotalCount(result.pagination?.total || result.items.length)
           }
         } else {
           throw new Error('Failed to fetch items')
@@ -50,44 +72,9 @@ export default function ItemsPage() {
     }
 
     loadItems()
-  }, [toast])
+  }, [debouncedSearchQuery, selectedCategory, sortBy, toast])
 
-  // Filter and sort items
-  useEffect(() => {
-    let filtered = items
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      filtered = filtered.filter(item =>
-        item.text.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-
-    // Apply category filter
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter(item => item.category === selectedCategory)
-    }
-
-    // Apply sorting
-    filtered = [...filtered].sort((a, b) => {
-      switch (sortBy) {
-        case "date-desc":
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-        case "date-asc":
-          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-        case "category":
-          const catA = a.category || "zzz"
-          const catB = b.category || "zzz"
-          return catA.localeCompare(catB)
-        case "text":
-          return a.text.localeCompare(b.text)
-        default:
-          return 0
-      }
-    })
-
-    setFilteredItems(filtered)
-  }, [items, searchQuery, selectedCategory, sortBy])
+  // Filtering and sorting now handled server-side
 
   // Update item category
   const updateItemCategory = async (itemId: string, newCategory: string) => {
@@ -109,13 +96,13 @@ export default function ItemsPage() {
       }
 
       const result = await response.json()
-      
+
       if (result.success) {
         // Update local state
-        setItems(prev => prev.map(item => 
+        setItems(prev => prev.map(item =>
           item.id === itemId ? { ...item, category: newCategory } : item
         ))
-        
+
         toast({
           title: "Category updated",
           description: "Item category has been successfully updated.",
@@ -151,11 +138,11 @@ export default function ItemsPage() {
       }
 
       const result = await response.json()
-      
+
       if (result.success) {
         // Update local state
         setItems(prev => prev.filter(item => item.id !== itemId))
-        
+
         toast({
           title: "Item deleted",
           description: "Item has been successfully deleted.",
@@ -206,7 +193,7 @@ export default function ItemsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Items Management</h1>
         <div className="text-sm text-muted-foreground">
-          {filteredItems.length} of {items.length} items
+          {items.length} of {totalCount} items
         </div>
       </div>
 
@@ -287,14 +274,14 @@ export default function ItemsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredItems.length === 0 ? (
+              {items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    {items.length === 0 ? "No items found. Start by capturing some items!" : "No items match your filters."}
+                    {totalCount === 0 ? "No items found. Start by capturing some items!" : "No items match your filters."}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredItems.map((item) => (
+                items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="max-w-md">
                       <div className="truncate" title={item.text}>
